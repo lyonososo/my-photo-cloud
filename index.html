@@ -705,7 +705,7 @@ vImg.addEventListener('touchend', e => {
   }
 }, { passive: true });
 
-// Expose to inline handlers
+// Expose all functions to global scope for inline onclick handlers
 window._setupToken = function() {
   const t = $('setupToken').value.trim();
   if (!t) { toast('请输入 Token'); return; }
@@ -714,6 +714,16 @@ window._setupToken = function() {
 };
 window._openViewer = openViewer;
 window._confirmDel = confirmDel;
+window.openSettings = openSettings;
+window.closeSettings = closeSettings;
+window.saveToken = saveToken;
+window.clearData = clearData;
+window.doRefresh = doRefresh;
+window.pickFiles = pickFiles;
+window.closeViewer = closeViewer;
+window.navPhoto = navPhoto;
+window.savePhoto = savePhoto;
+window.closeCfm = closeCfm;
 
 // Go!
 init();
