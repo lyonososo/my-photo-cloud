@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -11,7 +12,7 @@
 :root{
   --primary:#6366f1;--primary-dark:#4f46e5;--primary-light:#a5b4fc;
   --bg:#f8fafc;--card:#ffffff;--text:#0f172a;--text2:#64748b;--border:#e2e8f0;
-  --danger:#ef4444;--success:#22c55e;--radius:14px;
+  --danger:#ef4444;--success:#22c55e;--warn:#f59e0b;--radius:14px;
   --safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);
 }
 body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Roboto,sans-serif;
@@ -58,8 +59,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Ro
 .btn-sm{padding:8px 16px;font-size:13px;border-radius:10px}
 .btn-block{width:100%;justify-content:center}
 
+/* Storage Bar */
+.storage-bar{margin:12px 16px;background:var(--card);border-radius:var(--radius);padding:14px 16px;
+  box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.storage-bar .bar-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.storage-bar .bar-title{font-size:13px;font-weight:600;color:var(--text2)}
+.storage-bar .bar-numbers{font-size:13px;font-weight:700;color:var(--text)}
+.storage-bar .bar-numbers .used{color:var(--primary)}
+.storage-bar .bar-numbers .total{color:var(--text2)}
+.storage-bar .bar-track{height:8px;background:var(--bg);border-radius:4px;overflow:hidden;position:relative}
+.storage-bar .bar-fill{height:100%;border-radius:4px;transition:width .6s ease;min-width:0}
+.storage-bar .bar-fill.green{background:linear-gradient(90deg,#22c55e,#4ade80)}
+.storage-bar .bar-fill.yellow{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+.storage-bar .bar-fill.red{background:linear-gradient(90deg,#ef4444,#f87171)}
+.storage-bar .bar-repos{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.storage-bar .repo-tag{font-size:11px;padding:3px 8px;border-radius:6px;background:var(--bg);
+  color:var(--text2);font-weight:500}
+.storage-bar .repo-tag .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;vertical-align:middle}
+.storage-bar .repo-tag .dot.active{background:var(--success)}
+.storage-bar .repo-tag .dot.full{background:var(--danger)}
+
 /* Stats */
-.stats{display:flex;gap:10px;padding:14px 16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.stats{display:flex;gap:10px;padding:0 16px 12px;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .stat{flex:1;min-width:0;background:var(--card);border-radius:var(--radius);padding:12px 14px;
   box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .stat .val{font-size:22px;font-weight:800;color:var(--primary)}
@@ -183,7 +204,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Ro
 ::-webkit-scrollbar{width:3px}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 </style>
+
 </head>
+
 <body>
 
 <header class="header">
@@ -235,12 +258,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Ro
       <button class="btn btn-primary btn-sm" onclick="saveToken()">保存</button>
     </div>
     <div class="s-item">
-      <div class="s-label">仓库信息</div>
-      <div class="s-desc" id="sRepo">—</div>
-    </div>
-    <div class="s-item">
-      <div class="s-label">存储用量</div>
-      <div class="s-desc" id="sStorage">—</div>
+      <div class="s-label">存储详情</div>
+      <div class="s-desc" id="sStorage">加载中...</div>
     </div>
     <div class="s-item">
       <button class="btn btn-danger btn-sm btn-block" onclick="clearData()">🗑️ 清除本地缓存</button>
@@ -270,14 +289,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Ro
 /* ── Config ── */
 const API = 'https://api.github.com';
 const OWNER = 'lyonososo';
-const REPO = 'my-photo-cloud';
+const REPO_BASE = 'my-photo-cloud';
 const DIR = 'photos';
+const MAX_REPOS = 5;
+const REPO_LIMIT_BYTES = 1024 * 1024 * 1024; // 1GB per repo
+const COMPRESS_MAX = 2400; // max dimension for compression
+const COMPRESS_QUALITY = 0.82;
+const PARALLEL_UPLOADS = 3;
 
 /* ── State ── */
 let photos = [];
 let viewIdx = -1;
 let cfmCb = null;
 let isSetup = false;
+let repoStates = []; // [{name, size, active}]
 
 /* ── Helpers ── */
 const $ = id => document.getElementById(id);
@@ -286,7 +311,14 @@ const token = () => localStorage.getItem('gh_token') || '';
 function fmtSize(b) {
   if (b < 1024) return b + ' B';
   if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
-  return (b / 1048576).toFixed(1) + ' MB';
+  if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+  return (b / 1073741824).toFixed(2) + ' GB';
+}
+
+function fmtSizeShort(b) {
+  if (b < 1048576) return (b / 1024).toFixed(0) + 'K';
+  if (b < 1073741824) return (b / 1048576).toFixed(0) + 'M';
+  return (b / 1073741824).toFixed(1) + 'G';
 }
 
 function toast(msg) {
@@ -301,13 +333,12 @@ function showCfm(title, msg, cb) {
   $('cfmTitle').textContent = title;
   $('cfmMsg').textContent = msg;
   cfmCb = cb;
-  $('cfmOk').onclick = () => { closeCfm(); if (cfmCb) cfmCb(); };
+  $('cfmOk').onclick = () => { const cb = cfmCb; closeCfm(); if (cb) cb(); };
   $('confirmOL').classList.add('open');
 }
 
 function closeCfm() {
   $('confirmOL').classList.remove('open');
-  cfmCb = null;
 }
 
 /* ── API ── */
@@ -334,52 +365,132 @@ async function api(path, opts = {}) {
   return res.json();
 }
 
-/* ── Repo ── */
-async function ensureRepo() {
+/* ── Repo Management ── */
+function getRepoNames() {
+  const names = [];
+  for (let i = 1; i <= MAX_REPOS; i++) {
+    names.push(i === 1 ? REPO_BASE : REPO_BASE + '-' + i);
+  }
+  return names;
+}
+
+async function checkRepo(name) {
   try {
-    return await api('/repos/' + OWNER + '/' + REPO);
+    const repo = await api('/repos/' + OWNER + '/' + name);
+    return { name, size: (repo.size || 0) * 1024, active: true };
   } catch (e) {
-    if (e.message.includes('404')) {
-      return await api('/user/repos', {
-        method: 'POST',
-        body: { name: REPO, description: '☁️ 我的云端相册', auto_init: true, private: false }
-      });
-    }
-    throw e;
+    if (e.message.includes('404')) return { name, size: 0, active: false };
+    return { name, size: 0, active: false };
   }
 }
 
-async function ensurePages() {
+async function createRepo(name) {
+  return await api('/user/repos', {
+    method: 'POST',
+    body: { name, description: '☁️ 云端相册存储', auto_init: true, private: false }
+  });
+}
+
+async function ensurePages(name) {
   try {
-    await api('/repos/' + OWNER + '/' + REPO + '/pages', {
+    await api('/repos/' + OWNER + '/' + name + '/pages', {
       method: 'POST',
       body: { source: { branch: 'main', path: '/' } }
     });
-  } catch (e) {
-    // might already be enabled
+  } catch (e) { /* might already be enabled */ }
+}
+
+async function loadRepoStates() {
+  const names = getRepoNames();
+  const results = await Promise.all(names.map(n => checkRepo(n)));
+  repoStates = results;
+  return results;
+}
+
+function findBestRepo(fileSize) {
+  // Find repo with enough space
+  for (const r of repoStates) {
+    if (!r.active) continue;
+    if (r.size + fileSize < REPO_LIMIT_BYTES) return r.name;
   }
+  // If all active repos are full, try creating next inactive one
+  for (const r of repoStates) {
+    if (!r.active) return r.name; // will be created on upload
+  }
+  return null;
+}
+
+function getTotalUsed() {
+  return repoStates.reduce((s, r) => s + r.size, 0);
+}
+
+function getTotalCapacity() {
+  const activeCount = repoStates.filter(r => r.active).length;
+  return activeCount * REPO_LIMIT_BYTES;
+}
+
+/* ── Image Compression ── */
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    // Skip compression for small images or non-JPEG/PNG
+    if (file.size < 200000) { resolve(file); return; }
+    if (!file.type.match(/^image\/(jpeg|png|webp)$/)) { resolve(file); return; }
+
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height;
+      if (w <= COMPRESS_MAX && h <= COMPRESS_MAX && file.size < 500000) {
+        resolve(file); return;
+      }
+      // Scale down
+      if (w > COMPRESS_MAX || h > COMPRESS_MAX) {
+        if (w > h) { h = Math.round(h * COMPRESS_MAX / w); w = COMPRESS_MAX; }
+        else { w = Math.round(w * COMPRESS_MAX / h); h = COMPRESS_MAX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => {
+        if (blob && blob.size < file.size) {
+          resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+        } else {
+          resolve(file);
+        }
+      }, 'image/jpeg', COMPRESS_QUALITY);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
 }
 
 /* ── Photos ── */
 async function fetchPhotos() {
   let items = [];
-  try {
-    const root = await api('/repos/' + OWNER + '/' + REPO + '/contents/' + DIR);
-    for (const entry of root) {
-      if (entry.type === 'file' && isImage(entry.name)) {
-        items.push(entry);
-      } else if (entry.type === 'dir') {
-        try {
-          const sub = await api('/repos/' + OWNER + '/' + REPO + '/contents/' + entry.path);
-          for (const f of sub) {
-            if (f.type === 'file' && isImage(f.name)) items.push(f);
-          }
-        } catch (_) {}
+  const activeRepos = repoStates.filter(r => r.active);
+  // Fetch from all active repos in parallel
+  const fetches = activeRepos.map(async repo => {
+    try {
+      const root = await api('/repos/' + OWNER + '/' + repo.name + '/contents/' + DIR);
+      for (const entry of root) {
+        if (entry.type === 'file' && isImage(entry.name)) {
+          items.push({ ...entry, _repo: repo.name });
+        } else if (entry.type === 'dir') {
+          try {
+            const sub = await api('/repos/' + OWNER + '/' + repo.name + '/contents/' + entry.path);
+            for (const f of sub) {
+              if (f.type === 'file' && isImage(f.name)) items.push({ ...f, _repo: repo.name });
+            }
+          } catch (_) {}
+        }
       }
+    } catch (e) {
+      if (!e.message.includes('404')) console.warn('Fetch error from ' + repo.name + ':', e);
     }
-  } catch (e) {
-    if (!e.message.includes('404')) throw e;
-  }
+  });
+  await Promise.all(fetches);
   items.sort((a, b) => b.name.localeCompare(a.name));
   return items;
 }
@@ -389,40 +500,78 @@ function isImage(name) {
 }
 
 async function uploadOne(file, onProgress) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const b64 = reader.result.split(',')[1];
-      const now = new Date();
-      const y = now.getFullYear();
-      const m = String(now.getMonth() + 1).padStart(2, '0');
-      const d = String(now.getDate()).padStart(2, '0');
-      const h = String(now.getHours()).padStart(2, '0');
-      const mi = String(now.getMinutes()).padStart(2, '0');
-      const s = String(now.getSeconds()).padStart(2, '0');
-      const rand = Math.random().toString(36).substring(2, 8);
-      const ext = file.name.split('.').pop().toLowerCase();
-      const fname = y + m + d + '_' + h + mi + s + '_' + rand + '.' + ext;
-      const path = DIR + '/' + y + '-' + m + '/' + fname;
-      try {
-        onProgress(40);
-        await api('/repos/' + OWNER + '/' + REPO + '/contents/' + path, {
-          method: 'PUT',
-          body: { message: '📷 ' + fname, content: b64 }
-        });
-        onProgress(100);
-        resolve({ name: fname, path, size: file.size });
-      } catch (e) {
-        reject(e);
-      }
-    };
-    reader.onerror = () => reject(new Error('文件读取失败'));
-    reader.readAsDataURL(file);
+  return new Promise(async (resolve, reject) => {
+    try {
+      // Compress first
+      onProgress(10, '压缩中...');
+      const processed = await compressImage(file);
+
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const b64 = reader.result.split(',')[1];
+          onProgress(30, '选择仓库...');
+
+          // Find best repo
+          let repoName = findBestRepo(processed.size);
+          if (!repoName) {
+            reject(new Error('所有仓库已满，无法上传'));
+            return;
+          }
+
+          // Ensure repo exists
+          const repoState = repoStates.find(r => r.name === repoName);
+          if (!repoState.active) {
+            onProgress(35, '创建新仓库...');
+            try {
+              await createRepo(repoName);
+              await ensurePages(repoName);
+              repoState.active = true;
+              repoState.size = 0;
+            } catch (e) {
+              reject(new Error('创建仓库失败：' + e.message));
+              return;
+            }
+          }
+
+          const now = new Date();
+          const y = now.getFullYear();
+          const m = String(now.getMonth() + 1).padStart(2, '0');
+          const d = String(now.getDate()).padStart(2, '0');
+          const h = String(now.getHours()).padStart(2, '0');
+          const mi = String(now.getMinutes()).padStart(2, '0');
+          const s = String(now.getSeconds()).padStart(2, '0');
+          const rand = Math.random().toString(36).substring(2, 8);
+          const ext = processed.name.split('.').pop().toLowerCase();
+          const fname = y + m + d + '_' + h + mi + s + '_' + rand + '.' + ext;
+          const path = DIR + '/' + y + '-' + m + '/' + fname;
+
+          onProgress(50, '上传中...');
+          await api('/repos/' + OWNER + '/' + repoName + '/contents/' + path, {
+            method: 'PUT',
+            body: { message: '📷 ' + fname, content: b64 }
+          });
+
+          // Update repo size
+          repoState.size += processed.size;
+
+          onProgress(100, '完成');
+          resolve({ name: fname, path, size: processed.size, _repo: repoName });
+        } catch (e) {
+          reject(e);
+        }
+      };
+      reader.onerror = () => reject(new Error('文件读取失败'));
+      reader.readAsDataURL(processed);
+    } catch (e) {
+      reject(e);
+    }
   });
 }
 
-async function deleteOne(path, sha) {
-  await api('/repos/' + OWNER + '/' + REPO + '/contents/' + path, {
+async function deleteOne(path, sha, repoName) {
+  const repo = repoName || REPO_BASE;
+  await api('/repos/' + OWNER + '/' + repo + '/contents/' + path, {
     method: 'DELETE',
     body: { message: '🗑️ Delete ' + path, sha }
   });
@@ -436,7 +585,7 @@ function renderSetup() {
     <div class="setup">
       <div class="logo">☁️</div>
       <h2>云端相册</h2>
-      <p>将 iPhone 照片免费存储到 GitHub<br>随时随地查看和下载</p>
+      <p>将 iPhone 照片免费存储到 GitHub<br>最多支持 ${MAX_REPOS}GB 空间，随时随地查看和下载</p>
       <div class="field">
         <label>GitHub Personal Access Token</label>
         <input type="password" id="setupToken" placeholder="粘贴你的 Token">
@@ -449,10 +598,38 @@ function renderLoading() {
   $('app').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 }
 
+function renderStorageBar() {
+  const used = getTotalUsed();
+  const capacity = getTotalCapacity();
+  const activeCount = repoStates.filter(r => r.active).length;
+  const pct = capacity > 0 ? Math.min((used / capacity) * 100, 100) : 0;
+  const colorClass = pct < 70 ? 'green' : pct < 90 ? 'yellow' : 'red';
+
+  let reposHtml = repoStates.filter(r => r.active).map(r => {
+    const rPct = Math.min((r.size / REPO_LIMIT_BYTES) * 100, 100);
+    const dotClass = rPct > 95 ? 'full' : 'active';
+    return `<span class="repo-tag"><span class="dot ${dotClass}"></span>${r.name} ${fmtSizeShort(r.size)}/${fmtSizeShort(REPO_LIMIT_BYTES)}</span>`;
+  }).join('');
+
+  return `
+    <div class="storage-bar">
+      <div class="bar-header">
+        <span class="bar-title">📦 存储空间</span>
+        <span class="bar-numbers"><span class="used">${fmtSize(used)}</span> / <span class="total">${fmtSize(capacity)}</span></span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill ${colorClass}" style="width:${pct}%"></div>
+      </div>
+      <div class="bar-repos">${reposHtml}</div>
+    </div>`;
+}
+
 function renderGallery() {
   const app = $('app');
+  const storageHtml = renderStorageBar();
+
   if (photos.length === 0) {
-    app.innerHTML = `
+    app.innerHTML = storageHtml + `
       <div class="empty">
         <div class="icon">📷</div>
         <h3>还没有照片</h3>
@@ -461,10 +638,11 @@ function renderGallery() {
     return;
   }
   const totalSize = photos.reduce((s, p) => s + (p.size || 0), 0);
-  let html = `<div class="stats">
-    <div class="stat"><div class="val">${photos.length}</div><div class="lbl">张照片</div></div>
-    <div class="stat"><div class="val">${fmtSize(totalSize)}</div><div class="lbl">已用空间</div></div>
-  </div><div class="gallery">`;
+  let html = storageHtml + `
+    <div class="stats">
+      <div class="stat"><div class="val">${photos.length}</div><div class="lbl">张照片</div></div>
+      <div class="stat"><div class="val">${fmtSize(totalSize)}</div><div class="lbl">已用空间</div></div>
+    </div><div class="gallery">`;
   photos.forEach((p, i) => {
     const dateStr = p.name.substring(0, 8).replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
     html += `<div class="gallery-item" onclick="window._openViewer(${i})" style="animation-delay:${Math.min(i * 30, 300)}ms">
@@ -539,22 +717,43 @@ async function handleUpload(files) {
       <div class="detail">
         <div class="name">${f.name}</div>
         <div class="bar"><div class="fill" id="upBar${i}"></div></div>
-        <div class="status" id="upSt${i}">准备上传...</div>
+        <div class="status" id="upSt${i}">准备中...</div>
       </div>
     </div>`).join('');
 
   let ok = 0, fail = 0;
-  for (let i = 0; i < imgs.length; i++) {
+  const newPhotos = [];
+
+  // Parallel upload with concurrency limit
+  const queue = imgs.map((f, i) => ({ file: f, index: i }));
+  let running = 0;
+  let queueIdx = 0;
+
+  function next() {
+    while (running < PARALLEL_UPLOADS && queueIdx < queue.length) {
+      const { file, index } = queue[queueIdx++];
+      running++;
+      processOne(file, index).then(() => {
+        running--;
+        next();
+      });
+    }
+  }
+
+  async function processOne(file, i) {
     try {
-      await uploadOne(imgs[i], pct => {
+      const result = await uploadOne(file, (pct, status) => {
         const bar = $('upBar' + i);
         if (bar) bar.style.width = pct + '%';
+        const st = $('upSt' + i);
+        if (st && status) st.textContent = status;
       });
       const spin = $('upSpin' + i);
       if (spin) { spin.className = 'done-icon'; spin.textContent = '✓'; }
       const st = $('upSt' + i);
       if (st) { st.textContent = '上传成功'; st.className = 'status ok'; }
       ok++;
+      newPhotos.push(result);
     } catch (e) {
       const spin = $('upSpin' + i);
       if (spin) { spin.className = 'err-icon'; spin.textContent = '✗'; }
@@ -564,12 +763,42 @@ async function handleUpload(files) {
     }
   }
 
+  next();
+
+  // Wait for all to finish
+  await new Promise(resolve => {
+    const check = setInterval(() => {
+      if (running === 0 && queueIdx >= queue.length) {
+        clearInterval(check);
+        resolve();
+      }
+    }, 200);
+  });
+
+  // Immediately add new photos to the list and re-render
+  if (newPhotos.length > 0) {
+    // Fetch fresh data to get proper download_urls
+    try {
+      const freshPhotos = await fetchPhotos();
+      photos = freshPhotos;
+    } catch (e) {
+      // Fallback: just keep existing + add new ones at top
+      photos = [...newPhotos.map(p => ({
+        name: p.name,
+        path: p.path,
+        size: p.size,
+        download_url: 'https://raw.githubusercontent.com/' + OWNER + '/' + p._repo + '/main/' + p.path,
+        _repo: p._repo
+      })), ...photos];
+    }
+  }
+
   setTimeout(() => {
     ol.classList.remove('open');
     $('fab').classList.remove('busy');
     toast('上传完成：' + ok + ' 成功' + (fail ? '，' + fail + ' 失败' : ''));
-    doRefresh();
-  }, 800);
+    renderGallery();
+  }, 300);
 }
 
 /* ── Delete ── */
@@ -577,7 +806,7 @@ function confirmDel(idx) {
   const p = photos[idx];
   showCfm('删除照片', '确定要删除这张照片吗？\n' + p.name, async () => {
     try {
-      await deleteOne(p.path, p.sha);
+      await deleteOne(p.path, p.sha, p._repo);
       toast('已删除');
       doRefresh();
     } catch (e) {
@@ -591,7 +820,7 @@ function openSettings() {
   $('sToken').value = token();
   $('settingsOL').classList.add('open');
   setTimeout(() => $('settingsSheet').classList.add('open'), 10);
-  loadRepoInfo();
+  loadSettingsInfo();
 }
 
 function closeSettings() {
@@ -599,14 +828,20 @@ function closeSettings() {
   setTimeout(() => $('settingsOL').classList.remove('open'), 300);
 }
 
-async function loadRepoInfo() {
+async function loadSettingsInfo() {
   try {
-    const repo = await api('/repos/' + OWNER + '/' + REPO);
-    $('sRepo').textContent = repo.full_name + ' · ' + (repo.private ? '私有' : '公开');
-    $('sStorage').textContent = fmtSize((repo.size || 0) * 1024) + ' 已使用';
+    const used = getTotalUsed();
+    const capacity = getTotalCapacity();
+    const activeCount = repoStates.filter(r => r.active).length;
+    let info = `已激活 ${activeCount}/${MAX_REPOS} 个仓库\n`;
+    info += `总计：${fmtSize(used)} / ${fmtSize(capacity)}\n\n`;
+    repoStates.forEach(r => {
+      const status = r.active ? '✅' : '⬜';
+      info += `${status} ${r.name}：${fmtSize(r.size)} / ${fmtSize(REPO_LIMIT_BYTES)}\n`;
+    });
+    $('sStorage').textContent = info;
   } catch (e) {
-    $('sRepo').textContent = '无法获取';
-    $('sStorage').textContent = e.message;
+    $('sStorage').textContent = '无法获取';
   }
 }
 
@@ -636,6 +871,7 @@ async function doRefresh() {
   setTimeout(() => { btn.style.transform = ''; btn.style.transition = ''; }, 500);
   renderLoading();
   try {
+    await loadRepoStates();
     photos = await fetchPhotos();
     renderGallery();
   } catch (e) {
@@ -659,8 +895,17 @@ async function init() {
   }
 
   try {
-    await ensureRepo();
-    await ensurePages();
+    await loadRepoStates();
+    // Ensure first repo exists
+    if (!repoStates[0].active) {
+      try {
+        await createRepo(repoStates[0].name);
+        await ensurePages(repoStates[0].name);
+        repoStates[0].active = true;
+      } catch (e) {
+        toast('创建主仓库失败：' + e.message);
+      }
+    }
   } catch (e) {
     // non-critical
   }
@@ -730,5 +975,6 @@ init();
 
 })();
 </script>
+
 </body>
 </html>
