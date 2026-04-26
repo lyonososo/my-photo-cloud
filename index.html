@@ -336,7 +336,7 @@ function showCfm(title, msg, cb) {
   $('cfmTitle').textContent = title;
   $('cfmMsg').textContent = msg;
   cfmCb = cb;
-  $('cfmOk').onclick = () => { const cb = cfmCb; closeCfm(); if (cb) cb(); };
+  $('cfmOk').onclick = async () => { const cb = cfmCb; closeCfm(); if (cb) { try { await cb(); } catch(e) { console.error(e); toast('操作失败: ' + e.message); } } };
   $('confirmOL').classList.add('open');
 }
 
