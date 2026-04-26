@@ -229,7 +229,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Ro
   <div class="viewer-bar">
     <button class="close" onclick="closeViewer()">✕</button>
     <span class="info" id="viewerInfo"></span>
-    <button class="del-viewer" onclick="window._confirmDel(viewIdx);closeViewer()">🗑️</button>
+    <button class="del-viewer" onclick="window._confirmDel(window._viewIdx());closeViewer()">🗑️</button>
     <button class="save" onclick="savePhoto()">💾 保存</button>
   </div>
   <div class="viewer-body" id="viewerBody">
@@ -972,6 +972,8 @@ window.closeViewer = closeViewer;
 window.navPhoto = navPhoto;
 window.savePhoto = savePhoto;
 window.closeCfm = closeCfm;
+window._viewIdx = () => viewIdx;
+window._setViewIdx = (v) => { viewIdx = v; };
 
 // Go!
 init();
