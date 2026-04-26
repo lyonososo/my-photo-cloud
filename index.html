@@ -229,7 +229,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Ro
   <div class="viewer-bar">
     <button class="close" onclick="closeViewer()">✕</button>
     <span class="info" id="viewerInfo"></span>
-    <button class="del-viewer" onclick="window._confirmDel(window._viewIdx());closeViewer()">🗑️</button>
+    <button class="del-viewer" onclick="window._confirmDel(window._viewIdx())">🗑️</button>
     <button class="save" onclick="savePhoto()">💾 保存</button>
   </div>
   <div class="viewer-body" id="viewerBody">
@@ -809,6 +809,7 @@ function confirmDel(idx) {
   const p = photos[idx];
   showCfm('删除照片', '确定要删除这张照片吗？\n' + p.name, async () => {
     try {
+      closeViewer();
       await deleteOne(p.path, p.sha, p._repo);
       toast('已删除');
       doRefresh();
