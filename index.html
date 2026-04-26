@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>云端相册</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --primary:#6366f1;--primary-dark:#4f46e5;--primary-light:#a5b4fc;
+  --bg:#f8fafc;--card:#ffffff;--text:#0f172a;--text2:#64748b;--border:#e2e8f0;
+  --danger:#ef4444;--success:#22c55e;--radius:14px;
+  --safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Roboto,sans-serif;
+  background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+
+/* Header */
+.header{position:fixed;top:0;left:0;right:0;height:56px;padding-top:var(--safe-top);
+  background:rgba(255,255,255,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;
+  padding-left:16px;padding-right:12px;z-index:100}
+.header h1{font-size:19px;font-weight:700;display:flex;align-items:center;gap:6px}
+.header h1 span{background:linear-gradient(135deg,var(--primary),#8b5cf6);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header-actions{display:flex;gap:6px}
+.icon-btn{width:38px;height:38px;border:none;background:var(--bg);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:17px;
+  transition:transform .15s,background .15s}
+.icon-btn:active{transform:scale(.88);background:var(--border)}
+
+/* Main */
+.main{padding-top:calc(56px + var(--safe-top));padding-bottom:calc(90px + var(--safe-bottom));min-height:100vh}
+
+/* Setup */
+.setup{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:calc(100vh - 200px);padding:32px 24px;text-align:center}
+.setup .logo{width:80px;height:80px;border-radius:24px;
+  background:linear-gradient(135deg,var(--primary),#8b5cf6);
+  display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:24px;
+  box-shadow:0 8px 32px rgba(99,102,241,.3)}
+.setup h2{font-size:26px;font-weight:800;margin-bottom:8px}
+.setup p{color:var(--text2);line-height:1.7;margin-bottom:28px;font-size:15px}
+.field{width:100%;max-width:380px;margin-bottom:14px;text-align:left}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--text2);margin-bottom:6px}
+.field input{width:100%;padding:13px 16px;border:2px solid var(--border);border-radius:var(--radius);
+  font-size:15px;outline:none;transition:border-color .2s;background:var(--card)}
+.field input:focus{border-color:var(--primary)}
+.btn{padding:13px 28px;border:none;border-radius:var(--radius);font-size:15px;font-weight:600;
+  cursor:pointer;transition:transform .15s,opacity .15s;display:inline-flex;align-items:center;gap:8px}
+.btn:active{transform:scale(.96)}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-ghost{background:transparent;color:var(--text2);border:1.5px solid var(--border)}
+.btn-sm{padding:8px 16px;font-size:13px;border-radius:10px}
+.btn-block{width:100%;justify-content:center}
+
+/* Stats */
+.stats{display:flex;gap:10px;padding:14px 16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.stat{flex:1;min-width:0;background:var(--card);border-radius:var(--radius);padding:12px 14px;
+  box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.stat .val{font-size:22px;font-weight:800;color:var(--primary)}
+.stat .lbl{font-size:11px;color:var(--text2);margin-top:2px;font-weight:500}
+
+/* Gallery */
+.gallery{padding:2px;columns:3;column-gap:3px}
+.gallery-item{break-inside:avoid;margin-bottom:3px;position:relative;border-radius:6px;
+  overflow:hidden;cursor:pointer;background:#e2e8f0;animation:fadeIn .4s ease}
+@keyframes fadeIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+.gallery-item img{width:100%;display:block;min-height:80px;object-fit:cover}
+.gallery-item .meta{position:absolute;bottom:0;left:0;right:0;padding:20px 8px 6px;
+  background:linear-gradient(transparent,rgba(0,0,0,.55));pointer-events:none}
+.gallery-item .meta span{color:#fff;font-size:10px;font-weight:500}
+.gallery-item .del{position:absolute;top:6px;right:6px;width:26px;height:26px;
+  background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;font-size:13px;
+  cursor:pointer;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.gallery-item:active .del{display:flex}
+
+/* Empty */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:80px 24px;text-align:center}
+.empty .icon{font-size:56px;margin-bottom:16px;opacity:.4}
+.empty h3{font-size:17px;color:var(--text2);margin-bottom:6px;font-weight:600}
+.empty p{font-size:14px;color:var(--text2)}
+
+/* FAB */
+.fab{position:fixed;bottom:calc(24px + var(--safe-bottom));right:20px;width:56px;height:56px;
+  background:linear-gradient(135deg,var(--primary),#8b5cf6);color:#fff;border:none;
+  border-radius:50%;font-size:30px;cursor:pointer;z-index:90;display:flex;align-items:center;
+  justify-content:center;box-shadow:0 6px 24px rgba(99,102,241,.4);transition:transform .2s}
+.fab:active{transform:scale(.88)}
+.fab.busy{opacity:.5;pointer-events:none}
+
+/* Viewer */
+.viewer{position:fixed;inset:0;background:#000;z-index:200;display:none;flex-direction:column}
+.viewer.open{display:flex}
+.viewer-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
+  padding-top:calc(10px + var(--safe-top));color:#fff;flex-shrink:0}
+.viewer-bar .close{width:36px;height:36px;background:rgba(255,255,255,.12);border:none;
+  border-radius:50%;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;
+  justify-content:center}
+.viewer-bar .info{font-size:13px;opacity:.7}
+.viewer-bar .save{padding:7px 16px;background:var(--primary);color:#fff;border:none;
+  border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px}
+.viewer-body{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;
+  position:relative;touch-action:pan-y pinch-zoom}
+.viewer-body img{max-width:100%;max-height:100%;object-fit:contain;transition:transform .2s;
+  transform-origin:center center;user-select:none;-webkit-user-drag:none}
+.viewer-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;
+  background:rgba(255,255,255,.1);border:none;border-radius:50%;color:#fff;font-size:22px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.viewer-nav.prev{left:8px}
+.viewer-nav.next{right:8px}
+
+/* Upload overlay */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:150;display:none;
+  align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.overlay.open{display:flex}
+.upload-box{background:var(--card);border-radius:20px;padding:24px;width:88%;max-width:360px;
+  box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.upload-box h3{font-size:17px;margin-bottom:16px;font-weight:700}
+.up-item{display:flex;align-items:center;gap:12px;padding:8px 0}
+.up-item .spin{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--primary);
+  border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.up-item .done-icon,.up-item .err-icon{width:32px;height:32px;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.up-item .done-icon{background:#dcfce7;color:var(--success)}
+.up-item .err-icon{background:#fee2e2;color:var(--danger)}
+.up-item .detail{flex:1;min-width:0}
+.up-item .name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.up-item .bar{height:4px;background:var(--bg);border-radius:2px;margin-top:5px;overflow:hidden}
+.up-item .fill{height:100%;background:var(--primary);border-radius:2px;transition:width .3s;width:0}
+.up-item .status{font-size:11px;color:var(--text2);margin-top:3px}
+.up-item .status.ok{color:var(--success)}
+.up-item .status.err{color:var(--danger)}
+
+/* Settings */
+.settings-sheet{position:fixed;bottom:0;left:0;right:0;background:var(--card);
+  border-radius:20px 20px 0 0;padding:20px 20px calc(20px + var(--safe-bottom));
+  z-index:160;transform:translateY(100%);transition:transform .3s ease;max-height:80vh;overflow-y:auto}
+.settings-sheet.open{transform:translateY(0)}
+.settings-sheet .handle{width:36px;height:4px;background:var(--border);border-radius:2px;
+  margin:0 auto 16px}
+.settings-sheet h3{font-size:17px;margin-bottom:16px;font-weight:700}
+.s-item{padding:14px 0;border-bottom:1px solid var(--border)}
+.s-item:last-child{border-bottom:none}
+.s-item .s-label{font-size:14px;font-weight:600;margin-bottom:3px}
+.s-item .s-desc{font-size:12px;color:var(--text2);margin-bottom:8px}
+
+/* Confirm */
+.confirm-box{background:var(--card);border-radius:20px;padding:28px 24px;width:85%;max-width:320px;
+  text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.confirm-box h3{font-size:17px;margin-bottom:8px;font-weight:700}
+.confirm-box p{color:var(--text2);font-size:14px;margin-bottom:20px;line-height:1.6;white-space:pre-line}
+.confirm-box .acts{display:flex;gap:10px;justify-content:center}
+
+/* Toast */
+.toast{position:fixed;bottom:calc(100px + var(--safe-bottom));left:50%;
+  transform:translateX(-50%) translateY(20px);background:var(--text);color:#fff;
+  padding:11px 22px;border-radius:24px;font-size:14px;font-weight:500;z-index:300;
+  opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+/* Loading */
+.loading{display:flex;align-items:center;justify-content:center;padding:48px}
+.spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--primary);
+  border-radius:50%;animation:spin .7s linear infinite}
+
+/* Responsive */
+@media(min-width:768px){
+  .gallery{columns:4;max-width:720px;margin:0 auto;padding:4px;column-gap:6px}
+  .gallery-item{margin-bottom:6px;border-radius:8px}
+}
+@media(min-width:1024px){
+  .gallery{columns:5;max-width:960px}
+}
+
+#fileInput{display:none}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <h1><span>☁️ 云端相册</span></h1>
+  <div class="header-actions">
+    <button class="icon-btn" id="btnRefresh" onclick="doRefresh()">🔄</button>
+    <button class="icon-btn" onclick="openSettings()">⚙️</button>
+  </div>
+</header>
+
+<main class="main" id="app"></main>
+
+<button class="fab" id="fab" onclick="pickFiles()">+</button>
+<input type="file" id="fileInput" accept="image/*" multiple>
+
+<!-- Viewer -->
+<div class="viewer" id="viewer">
+  <div class="viewer-bar">
+    <button class="close" onclick="closeViewer()">✕</button>
+    <span class="info" id="viewerInfo"></span>
+    <button class="save" onclick="savePhoto()">💾 保存</button>
+  </div>
+  <div class="viewer-body" id="viewerBody">
+    <button class="viewer-nav prev" onclick="navPhoto(-1)">‹</button>
+    <img id="viewerImg" src="" alt="">
+    <button class="viewer-nav next" onclick="navPhoto(1)">›</button>
+  </div>
+</div>
+
+<!-- Upload overlay -->
+<div class="overlay" id="uploadOL">
+  <div class="upload-box">
+    <h3>📤 上传中</h3>
+    <div id="uploadList"></div>
+  </div>
+</div>
+
+<!-- Settings overlay -->
+<div class="overlay" id="settingsOL" onclick="closeSettings()">
+  <div class="settings-sheet" id="settingsSheet" onclick="event.stopPropagation()">
+    <div class="handle"></div>
+    <h3>⚙️ 设置</h3>
+    <div class="s-item">
+      <div class="s-label">GitHub Token</div>
+      <div class="s-desc">用于访问你的 GitHub 仓库存储照片</div>
+      <div class="field" style="margin-top:4px">
+        <input type="password" id="sToken" placeholder="ghp_xxxxxxxxxxxx">
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="saveToken()">保存</button>
+    </div>
+    <div class="s-item">
+      <div class="s-label">仓库信息</div>
+      <div class="s-desc" id="sRepo">—</div>
+    </div>
+    <div class="s-item">
+      <div class="s-label">存储用量</div>
+      <div class="s-desc" id="sStorage">—</div>
+    </div>
+    <div class="s-item">
+      <button class="btn btn-danger btn-sm btn-block" onclick="clearData()">🗑️ 清除本地缓存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm -->
+<div class="overlay" id="confirmOL">
+  <div class="confirm-box">
+    <h3 id="cfmTitle">确认</h3>
+    <p id="cfmMsg"></p>
+    <div class="acts">
+      <button class="btn btn-ghost btn-sm" onclick="closeCfm()">取消</button>
+      <button class="btn btn-danger btn-sm" id="cfmOk">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ── Config ── */
+const API = 'https://api.github.com';
+const OWNER = 'lyonososo';
+const REPO = 'my-photo-cloud';
+const DIR = 'photos';
+
+/* ── State ── */
+let photos = [];
+let viewIdx = -1;
+let cfmCb = null;
+let isSetup = false;
+
+/* ── Helpers ── */
+const $ = id => document.getElementById(id);
+const token = () => localStorage.getItem('gh_token') || '';
+
+function fmtSize(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+  return (b / 1048576).toFixed(1) + ' MB';
+}
+
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+function showCfm(title, msg, cb) {
+  $('cfmTitle').textContent = title;
+  $('cfmMsg').textContent = msg;
+  cfmCb = cb;
+  $('cfmOk').onclick = () => { closeCfm(); if (cfmCb) cfmCb(); };
+  $('confirmOL').classList.add('open');
+}
+
+function closeCfm() {
+  $('confirmOL').classList.remove('open');
+  cfmCb = null;
+}
+
+/* ── API ── */
+async function api(path, opts = {}) {
+  const t = token();
+  if (!t) throw new Error('未设置 Token');
+  const headers = {
+    'Authorization': 'token ' + t,
+    'Accept': 'application/vnd.github.v3+json',
+    ...(opts.headers || {})
+  };
+  if (opts.body && typeof opts.body === 'object') {
+    headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(opts.body);
+  }
+  const res = await fetch(API + path, { ...opts, headers });
+  if (res.status === 401) throw new Error('Token 无效或已过期');
+  if (res.status === 404) throw new Error('资源不存在 (404)');
+  if (res.status === 403) throw new Error('权限不足或请求过于频繁');
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(d.message || '请求失败 (' + res.status + ')');
+  }
+  return res.json();
+}
+
+/* ── Repo ── */
+async function ensureRepo() {
+  try {
+    return await api('/repos/' + OWNER + '/' + REPO);
+  } catch (e) {
+    if (e.message.includes('404')) {
+      return await api('/user/repos', {
+        method: 'POST',
+        body: { name: REPO, description: '☁️ 我的云端相册', auto_init: true, private: false }
+      });
+    }
+    throw e;
+  }
+}
+
+async function ensurePages() {
+  try {
+    await api('/repos/' + OWNER + '/' + REPO + '/pages', {
+      method: 'POST',
+      body: { source: { branch: 'main', path: '/' } }
+    });
+  } catch (e) {
+    // might already be enabled
+  }
+}
+
+/* ── Photos ── */
+async function fetchPhotos() {
+  let items = [];
+  try {
+    const root = await api('/repos/' + OWNER + '/' + REPO + '/contents/' + DIR);
+    for (const entry of root) {
+      if (entry.type === 'file' && isImage(entry.name)) {
+        items.push(entry);
+      } else if (entry.type === 'dir') {
+        try {
+          const sub = await api('/repos/' + OWNER + '/' + REPO + '/contents/' + entry.path);
+          for (const f of sub) {
+            if (f.type === 'file' && isImage(f.name)) items.push(f);
+          }
+        } catch (_) {}
+      }
+    }
+  } catch (e) {
+    if (!e.message.includes('404')) throw e;
+  }
+  items.sort((a, b) => b.name.localeCompare(a.name));
+  return items;
+}
+
+function isImage(name) {
+  return /\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i.test(name);
+}
+
+async function uploadOne(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const b64 = reader.result.split(',')[1];
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      const h = String(now.getHours()).padStart(2, '0');
+      const mi = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+      const rand = Math.random().toString(36).substring(2, 8);
+      const ext = file.name.split('.').pop().toLowerCase();
+      const fname = y + m + d + '_' + h + mi + s + '_' + rand + '.' + ext;
+      const path = DIR + '/' + y + '-' + m + '/' + fname;
+      try {
+        onProgress(40);
+        await api('/repos/' + OWNER + '/' + REPO + '/contents/' + path, {
+          method: 'PUT',
+          body: { message: '📷 ' + fname, content: b64 }
+        });
+        onProgress(100);
+        resolve({ name: fname, path, size: file.size });
+      } catch (e) {
+        reject(e);
+      }
+    };
+    reader.onerror = () => reject(new Error('文件读取失败'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function deleteOne(path, sha) {
+  await api('/repos/' + OWNER + '/' + REPO + '/contents/' + path, {
+    method: 'DELETE',
+    body: { message: '🗑️ Delete ' + path, sha }
+  });
+}
+
+/* ── Render ── */
+function renderSetup() {
+  isSetup = true;
+  $('fab').style.display = 'none';
+  $('app').innerHTML = `
+    <div class="setup">
+      <div class="logo">☁️</div>
+      <h2>云端相册</h2>
+      <p>将 iPhone 照片免费存储到 GitHub<br>随时随地查看和下载</p>
+      <div class="field">
+        <label>GitHub Personal Access Token</label>
+        <input type="password" id="setupToken" placeholder="粘贴你的 Token">
+      </div>
+      <button class="btn btn-primary btn-block" onclick="window._setupToken()">开始使用</button>
+    </div>`;
+}
+
+function renderLoading() {
+  $('app').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+}
+
+function renderGallery() {
+  const app = $('app');
+  if (photos.length === 0) {
+    app.innerHTML = `
+      <div class="empty">
+        <div class="icon">📷</div>
+        <h3>还没有照片</h3>
+        <p>点击右下角 + 上传你的第一张照片</p>
+      </div>`;
+    return;
+  }
+  const totalSize = photos.reduce((s, p) => s + (p.size || 0), 0);
+  let html = `<div class="stats">
+    <div class="stat"><div class="val">${photos.length}</div><div class="lbl">张照片</div></div>
+    <div class="stat"><div class="val">${fmtSize(totalSize)}</div><div class="lbl">已用空间</div></div>
+  </div><div class="gallery">`;
+  photos.forEach((p, i) => {
+    const dateStr = p.name.substring(0, 8).replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+    html += `<div class="gallery-item" onclick="window._openViewer(${i})" style="animation-delay:${Math.min(i * 30, 300)}ms">
+      <img src="${p.download_url}" loading="lazy" alt="" onerror="this.parentElement.remove()">
+      <div class="meta"><span>${dateStr}</span></div>
+      <button class="del" onclick="event.stopPropagation();window._confirmDel(${i})">✕</button>
+    </div>`;
+  });
+  html += '</div>';
+  app.innerHTML = html;
+}
+
+/* ── Viewer ── */
+function openViewer(idx) {
+  viewIdx = idx;
+  const p = photos[idx];
+  $('viewerImg').src = p.download_url;
+  $('viewerImg').style.transform = '';
+  $('viewerInfo').textContent = (idx + 1) + ' / ' + photos.length + '  ·  ' + fmtSize(p.size || 0);
+  $('viewer').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeViewer() {
+  $('viewer').classList.remove('open');
+  document.body.style.overflow = '';
+  viewIdx = -1;
+}
+
+function navPhoto(dir) {
+  const next = viewIdx + dir;
+  if (next >= 0 && next < photos.length) openViewer(next);
+}
+
+async function savePhoto() {
+  if (viewIdx < 0) return;
+  const p = photos[viewIdx];
+  try {
+    const res = await fetch(p.download_url);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = p.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast('照片已保存');
+  } catch (e) {
+    toast('保存失败，请长按图片保存');
+  }
+}
+
+/* ── Upload ── */
+function pickFiles() {
+  $('fileInput').click();
+}
+
+async function handleUpload(files) {
+  if (!files || !files.length) return;
+  const ol = $('uploadOL');
+  const list = $('uploadList');
+  ol.classList.add('open');
+  $('fab').classList.add('busy');
+
+  const imgs = Array.from(files).filter(f => f.type.startsWith('image/'));
+  if (!imgs.length) { ol.classList.remove('open'); $('fab').classList.remove('busy'); toast('请选择图片文件'); return; }
+
+  list.innerHTML = imgs.map((f, i) => `
+    <div class="up-item" id="up${i}">
+      <div class="spin" id="upSpin${i}"></div>
+      <div class="detail">
+        <div class="name">${f.name}</div>
+        <div class="bar"><div class="fill" id="upBar${i}"></div></div>
+        <div class="status" id="upSt${i}">准备上传...</div>
+      </div>
+    </div>`).join('');
+
+  let ok = 0, fail = 0;
+  for (let i = 0; i < imgs.length; i++) {
+    try {
+      await uploadOne(imgs[i], pct => {
+        const bar = $('upBar' + i);
+        if (bar) bar.style.width = pct + '%';
+      });
+      const spin = $('upSpin' + i);
+      if (spin) { spin.className = 'done-icon'; spin.textContent = '✓'; }
+      const st = $('upSt' + i);
+      if (st) { st.textContent = '上传成功'; st.className = 'status ok'; }
+      ok++;
+    } catch (e) {
+      const spin = $('upSpin' + i);
+      if (spin) { spin.className = 'err-icon'; spin.textContent = '✗'; }
+      const st = $('upSt' + i);
+      if (st) { st.textContent = e.message; st.className = 'status err'; }
+      fail++;
+    }
+  }
+
+  setTimeout(() => {
+    ol.classList.remove('open');
+    $('fab').classList.remove('busy');
+    toast('上传完成：' + ok + ' 成功' + (fail ? '，' + fail + ' 失败' : ''));
+    doRefresh();
+  }, 800);
+}
+
+/* ── Delete ── */
+function confirmDel(idx) {
+  const p = photos[idx];
+  showCfm('删除照片', '确定要删除这张照片吗？\n' + p.name, async () => {
+    try {
+      await deleteOne(p.path, p.sha);
+      toast('已删除');
+      doRefresh();
+    } catch (e) {
+      toast('删除失败：' + e.message);
+    }
+  });
+}
+
+/* ── Settings ── */
+function openSettings() {
+  $('sToken').value = token();
+  $('settingsOL').classList.add('open');
+  setTimeout(() => $('settingsSheet').classList.add('open'), 10);
+  loadRepoInfo();
+}
+
+function closeSettings() {
+  $('settingsSheet').classList.remove('open');
+  setTimeout(() => $('settingsOL').classList.remove('open'), 300);
+}
+
+async function loadRepoInfo() {
+  try {
+    const repo = await api('/repos/' + OWNER + '/' + REPO);
+    $('sRepo').textContent = repo.full_name + ' · ' + (repo.private ? '私有' : '公开');
+    $('sStorage').textContent = fmtSize((repo.size || 0) * 1024) + ' 已使用';
+  } catch (e) {
+    $('sRepo').textContent = '无法获取';
+    $('sStorage').textContent = e.message;
+  }
+}
+
+function saveToken() {
+  const t = $('sToken').value.trim();
+  if (!t) { toast('请输入 Token'); return; }
+  localStorage.setItem('gh_token', t);
+  toast('Token 已保存');
+  closeSettings();
+  setTimeout(init, 400);
+}
+
+function clearData() {
+  showCfm('清除数据', '确定要清除本地缓存吗？\n（不会删除云端照片）', () => {
+    localStorage.removeItem('gh_token');
+    toast('已清除');
+    closeSettings();
+    setTimeout(init, 400);
+  });
+}
+
+/* ── Refresh ── */
+async function doRefresh() {
+  const btn = $('btnRefresh');
+  btn.style.transform = 'rotate(360deg)';
+  btn.style.transition = 'transform .5s';
+  setTimeout(() => { btn.style.transform = ''; btn.style.transition = ''; }, 500);
+  renderLoading();
+  try {
+    photos = await fetchPhotos();
+    renderGallery();
+  } catch (e) {
+    toast('加载失败：' + e.message);
+    renderGallery();
+  }
+}
+
+/* ── Init ── */
+async function init() {
+  const t = token();
+  if (!t) { renderSetup(); return; }
+
+  renderLoading();
+  try {
+    await api('/user');
+  } catch (e) {
+    renderSetup();
+    toast('Token 无效，请重新输入');
+    return;
+  }
+
+  try {
+    await ensureRepo();
+    await ensurePages();
+  } catch (e) {
+    // non-critical
+  }
+
+  isSetup = false;
+  $('fab').style.display = 'flex';
+  try {
+    photos = await fetchPhotos();
+  } catch (e) {
+    photos = [];
+  }
+  renderGallery();
+}
+
+/* ── Events ── */
+$('fileInput').addEventListener('change', function() {
+  handleUpload(this.files);
+  this.value = '';
+});
+
+document.addEventListener('keydown', e => {
+  if (viewIdx >= 0) {
+    if (e.key === 'ArrowLeft') navPhoto(-1);
+    else if (e.key === 'ArrowRight') navPhoto(1);
+    else if (e.key === 'Escape') closeViewer();
+  }
+});
+
+// Swipe in viewer
+let tx0 = 0, ty0 = 0;
+const vImg = $('viewerImg');
+vImg.addEventListener('touchstart', e => {
+  tx0 = e.touches[0].clientX;
+  ty0 = e.touches[0].clientY;
+}, { passive: true });
+
+vImg.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - tx0;
+  const dy = e.changedTouches[0].clientY - ty0;
+  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+    if (dx > 0) navPhoto(-1); else navPhoto(1);
+  }
+}, { passive: true });
+
+// Expose to inline handlers
+window._setupToken = function() {
+  const t = $('setupToken').value.trim();
+  if (!t) { toast('请输入 Token'); return; }
+  localStorage.setItem('gh_token', t);
+  init();
+};
+window._openViewer = openViewer;
+window._confirmDel = confirmDel;
+
+// Go!
+init();
+
+})();
+</script>
+</body>
+</html>
