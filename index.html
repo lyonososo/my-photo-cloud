@@ -124,6 +124,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Ro
   border-radius:50%;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;
   justify-content:center}
 .viewer-bar .info{font-size:13px;opacity:.7}
+.viewer-bar .del-viewer{padding:7px 12px;background:var(--danger);color:#fff;border:none;
+  border-radius:20px;font-size:13px;font-weight:600;cursor:pointer}
 .viewer-bar .save{padding:7px 16px;background:var(--primary);color:#fff;border:none;
   border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px}
 .viewer-body{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;
@@ -227,6 +229,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Ro
   <div class="viewer-bar">
     <button class="close" onclick="closeViewer()">✕</button>
     <span class="info" id="viewerInfo"></span>
+    <button class="del-viewer" onclick="window._confirmDel(viewIdx);closeViewer()">🗑️</button>
     <button class="save" onclick="savePhoto()">💾 保存</button>
   </div>
   <div class="viewer-body" id="viewerBody">
