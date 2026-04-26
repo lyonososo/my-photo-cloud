@@ -357,7 +357,8 @@ async function api(path, opts = {}) {
     headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(opts.body);
   }
-  const res = await fetch(API + path, { ...opts, headers });
+  const sep = path.includes('?') ? '&' : '?';
+  const res = await fetch(API + path + sep + '_t=' + Date.now(), { ...opts, headers });
   if (res.status === 401) throw new Error('Token 无效或已过期');
   if (res.status === 404) throw new Error('资源不存在 (404)');
   if (res.status === 403) throw new Error('权限不足或请求过于频繁');
